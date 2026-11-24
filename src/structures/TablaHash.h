@@ -1,0 +1,125 @@
+#pragma once
+#include <string>
+#include <vector>
+#include <list>
+#include <utility>
+#include <functional>
+#include <type_traits>
+
+std::size_t hashString(const std::string& clave, std::size_t capacidad);
+
+template <typename K, typename V>
+class TablaHash {
+private:
+    std::vector<std::list<std::pair<K, V>>> cubetas;
+    std::size_t capacidad;
+    std::size_t cantidadElementos;
+
+    std::size_t calcularIndiceCubeta(const K& clave) const {
+        if constexpr (std::is_same<K, std::string>::value) {
+            return hashString(clave, capacidad);
+        } else {
+            std::size_t valorHash = std::hash<K>{}(clave);
+            return valorHash % capacidad;
+        }
+    }
+
+    void redistribuirSiEsNecesario() {
+        const double factorCarga = static_cast<double>(cantidadElementos) / static_cast<double>(capacidad);
+        if (factorCarga > 0.75) {
+            redistribuir(capacidad * 2 + 1);
+        }
+    }
+
+    void redistribuir(std::size_t nuevaCapacidad) {
+        std::vector<std::list<std::pair<K, V>>> nuevasCubetas(nuevaCapacidad);
+        for (const auto& cubeta : cubetas) {
+            for (const auto& entrada : cubeta) {
+                const std::size_t nuevoIndice = [&]() {
+                    if constexpr (std::is_same<K, std::string>::value) {
+                        return hashString(entrada.first, nuevaCapacidad);
+                    } else {
+                        return std::hash<K>{}(entrada.first) % nuevaCapacidad;
+                    }
+                }();
+                nuevasCubetas[nuevoIndice].push_back(entrada);
+            }
+        }
+        cubetas.swap(nuevasCubetas);
+        capacidad = nuevaCapacidad;
+    }
+
+public:
+    explicit TablaHash(std::size_t cap = 101)
+        : cubetas(cap), capacidad(cap), cantidadElementos(0) {}
+
+    void insertar(const K& clave, const V& valor) {
+        const std::size_t indiceCubeta = calcularIndiceCubeta(clave);
+        for (auto& entrada : cubetas[indiceCubeta]) {
+            if (entrada.first == clave) {
+                entrada.second = valor;
+                return;
+            }
+        }
+        cubetas[indiceCubeta].push_back(std::make_pair(clave, valor));
+        ++cantidadElementos;
+        redistribuirSiEsNecesario();
+    }
+
+    bool contiene(const K& clave) const {
+        const std::size_t indiceCubeta = calcularIndiceCubeta(clave);
+        for (const auto& entrada : cubetas[indiceCubeta]) {
+            if (entrada.first == clave) return true;
+        }
+        return false;
+    }
+
+    V* obtener(const K& clave) {
+        const std::size_t indiceCubeta = calcularIndiceCubeta(clave);
+        for (auto& entrada : cubetas[indiceCubeta]) {
+            if (entrada.first == clave) return &entrada.second;
+        }
+        return nullptr;
+    }
+
+    void eliminar(const K& clave) {
+        const std::size_t indiceCubeta = calcularIndiceCubeta(clave);
+        for (auto it = cubetas[indiceCubeta].begin(); it != cubetas[indiceCubeta].end(); ++it) {
+            if (it->first == clave) {
+                cubetas[indiceCubeta].erase(it);
+                --cantidadElementos;
+                return;
+            }
+        }
+    }
+
+    std::size_t tamanio() const {
+        return cantidadElementos;
+    }
+
+    double factorCarga() const {
+        return static_cast<double>(cantidadElementos) / static_cast<double>(capacidad);
+    }
+
+    std::vector<K> claves() const {
+        std::vector<K> resultado;
+        resultado.reserve(cantidadElementos);
+        for (const auto& cubeta : cubetas) {
+            for (const auto& entrada : cubeta) {
+                resultado.push_back(entrada.first);
+            }
+        }
+        return resultado;
+    }
+
+    std::vector<std::pair<K, V>> entradas() const {
+        std::vector<std::pair<K, V>> resultado;
+        resultado.reserve(cantidadElementos);
+        for (const auto& cubeta : cubetas) {
+            for (const auto& entrada : cubeta) {
+                resultado.push_back(entrada);
+            }
+        }
+        return resultado;
+    }
+};
