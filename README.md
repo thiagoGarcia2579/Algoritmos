@@ -1,5 +1,4 @@
-# TPAlgoritmosG5
-TP Algoritmo Grupo 5
+# TP Algoritmos
 
 # Plataforma logística
 Sistema de gestión de centros, envíos y optimización de carga para el TP de Algoritmos.
